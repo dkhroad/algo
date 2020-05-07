@@ -4,7 +4,7 @@ Description: 'Algo VPN stack'
 Parameters:
   InstanceTypeParameter:
     Type: String
-    Default: t2.micro
+    Default: t3.micro
   PublicSSHKeyParameter:
     Type: String
   ImageIdParameter:
@@ -14,6 +14,12 @@ Parameters:
   UseThisElasticIP:
     Type: String
     Default: ''
+  InstanceMarketTypeParameter:
+    Default: spot
+    Type: String
+    AllowedValues:
+      - spot
+      - on-demand
   EbsEncrypted:
     Type: String
   UserData:
@@ -23,6 +29,7 @@ Parameters:
 Conditions:
   AllocateNewEIP: !Equals [!Ref UseThisElasticIP, '']
   AssociateExistingEIP: !Not [!Equals [!Ref UseThisElasticIP, '']]
+  InstanceIsSpot: !Equals [spot, !Ref InstanceMarketTypeParameter]
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -34,6 +41,15 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
+
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: InstanceIsSpot 
+    Properties:
+      LaunchTemplateName: !Ref AWS::StackName
+      LaunchTemplateData:
+        InstanceMarketOptions:
+          MarketType: spot
 
   VPCIPv6:
     Type: AWS::EC2::VPCCidrBlock
@@ -168,6 +184,14 @@ Resources:
         Ref: ImageIdParameter
       SubnetId: !Ref Subnet
       Ipv6AddressCount: 1
+      LaunchTemplate:
+        !If 
+          - InstanceIsSpot
+          -
+            LaunchTemplateId:
+              !Ref EC2LaunchTemplate
+            Version: 1
+          - !Ref AWS::NoValue
       UserData: !Ref UserData
       Tags:
         - Key: Name
